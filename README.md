@@ -14,3 +14,16 @@ An open-source AI agent built with **Next.js**, **TypeScript**, and modern AI te
 - 🚀 Production-ready architecture
 
 > **Status:** 🚧 Under active development.
+
+## 📌 Development Notes
+
+- Built with a modular component architecture
+- Includes a customizable prompt system
+- Supports branch-aware project workflows
+- Designed for extensibility and plugin-style features
+- Includes authentication and user session patterns
+- Optimized for both desktop and mobile experiences
+- Built using Tailwind, Prisma, and Next.js conventions
+- Includes example integrations for AI agents and automation
+- Structured for fast iteration and clear developer handoff
+- Documentation is intentionally concise and developer-friendly

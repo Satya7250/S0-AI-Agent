@@ -31,11 +31,10 @@ export const processTask = inngest.createFunction(
 export const codeAgentFunction = inngest.createFunction(
   { id: "code-agent", triggers: { event: "code-agent/run" } },
   async ({ event, step }) => {
+    console.log('Starting sandbox creation');
     const sandboxId = await step.run("get-sandbox-id", async () => {
-      const sandbox = await Sandbox.create({
-        template: "ugwj9f6y2wocdpps7omf"
-      });
-
+      const sandbox = await Sandbox.create();
+      console.log('Sandbox created with id:', sandbox.sandboxId);
       return sandbox.sandboxId;
     })
 
@@ -63,6 +62,7 @@ export const codeAgentFunction = inngest.createFunction(
       { sandboxId, summary: "", files: {} },
       { messages: previousMessages }
     );
+    console.log('State initialized, about to run network');
 
     const geminiModel = gemini({
       model: "gemini-2.5-flash",
@@ -172,7 +172,7 @@ export const codeAgentFunction = inngest.createFunction(
               try {
                 const sanbox = await Sandbox.connect(sandboxId);
 
-                const contents:any = [];
+                const contents: Array<{ path: string; content: string }> = []
                 console.log(contents)
 
                 for (const file of files) {
@@ -221,8 +221,34 @@ export const codeAgentFunction = inngest.createFunction(
 
     });
 
-    const result = await network.run(event.data.value, { state });
-    console.log(result)
+    let result;
+    // Retry helper for rate‑limit (429) errors
+    const retryWithBackoff = async <T>(fn: () => Promise<T>, attempts = 3): Promise<T> => {
+      let attempt = 0;
+      while (true) {
+        try {
+          return await fn();
+        } catch (err: any) {
+          const isRateLimit = err?.statusCode === 429 || /429/.test(err?.message ?? '');
+          if (!isRateLimit || attempt >= attempts) {
+            console.error('Network run error (non‑retryable or out of attempts):', err);
+            throw err;
+          }
+          attempt++;
+          const delayMs = Math.pow(2, attempt) * 1000 + Math.floor(Math.random() * 200);
+          console.warn(`Rate limit hit, retry ${attempt}/${attempts} after ${delayMs}ms`);
+          await new Promise(res => setTimeout(res, delayMs));
+        }
+      }
+    };
+
+    try {
+      result = await retryWithBackoff(() => network.run(event.data.value, { state }));
+      console.log('Network run completed', result);
+    } catch (err) {
+      console.error('Network run error after retries:', err);
+      throw err;
+    }
     const { summary, files } = result.state.data;
 
     const makeTextAgent = (name: string, system: string) => createAgent({ name, system, model: geminiModel });
